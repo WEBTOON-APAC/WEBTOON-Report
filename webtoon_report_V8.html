@@ -6,6 +6,7 @@
 <title>WEBTOON Ads · Report v7</title>
 <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:#f0f2f5;min-height:100vh;color:#1a1a2e}
@@ -1075,38 +1076,38 @@ function exportShareableHTML(){
 function exportToDrive(){
   if(!RAW_DATA)return;
   var btn=document.getElementById('__drive_btn__');
-  if(btn){btn.disabled=true;btn.textContent='공유 링크 생성 중...';}
+  if(btn){btn.disabled=true;btn.textContent='링크 생성 중...';}
 
   var viewerUrl=sessionStorage.getItem('__viewer_url__')||'';
   if(!viewerUrl){
-    viewerUrl=prompt('Vercel 뷰어 URL을 입력해 주세요.\n(한 번만 입력하면 저장됩니다)\n\n예: https://webtoon-report.vercel.app');
+    viewerUrl=prompt('GitHub Pages 뷰어 URL을 입력해 주세요.\n(한 번만 입력하면 저장됩니다)\n\n예: https://webtoon-apac.github.io/WEBTOON-Report');
     if(!viewerUrl){if(btn){btn.disabled=false;btn.innerHTML=_driveBtnHTML();}return;}
     viewerUrl=viewerUrl.replace(/\/+$/,'');
     sessionStorage.setItem('__viewer_url__',viewerUrl);
   }
 
-  var exportData=_buildExportData();
+  try{
+    var exportData=_buildExportData();
+    var jsonStr=JSON.stringify(exportData);
 
-  fetch('https://jsonblob.com/api/jsonBlob',{
-    method:'POST',
-    headers:{'Content-Type':'application/json','Accept':'application/json'},
-    body:JSON.stringify(exportData)
-  })
-  .then(function(resp){
-    if(!resp.ok)throw new Error('JSONBlob 저장 실패: '+resp.status);
-    var loc=resp.headers.get('Location')||'';
-    var blobId=loc.split('/').pop();
-    if(!blobId)throw new Error('Blob ID를 받지 못했습니다');
-    var shareUrl=viewerUrl+'/?id='+blobId;
+    // pako(zlib) 압축 + base64url 인코딩 → URL fragment에 담기
+    // pako 없으면 압축 없이 base64만 사용
+    var encoded;
+    if(typeof pako!=='undefined'){
+      var compressed=pako.deflate(jsonStr,{level:9});
+      encoded='z.'+btoa(String.fromCharCode.apply(null,compressed)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+    }else{
+      encoded='b.'+btoa(unescape(encodeURIComponent(jsonStr))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+    }
+
+    var shareUrl=viewerUrl+'/index.html#'+encoded;
     navigator.clipboard.writeText(shareUrl).catch(function(){});
     _showShareSuccessModal(shareUrl);
-  })
-  .catch(function(e){
-    alert('공유 링크 생성 오류: '+e.message+'\n\nHTML 다운로드 버튼을 사용해 주세요.');
-  })
-  .finally(function(){
+  }catch(e){
+    alert('링크 생성 오류: '+e.message);
+  }finally{
     if(btn){btn.disabled=false;btn.innerHTML=_driveBtnHTML();}
-  });
+  }
 }
 
 
